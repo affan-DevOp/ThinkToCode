@@ -6,6 +6,7 @@ import React, {
   useRef
 } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
+import { useToast } from "../toast";
 
 type Responder = () => boolean;
 
@@ -63,6 +64,9 @@ export function KeyboardLayerProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
+    const toast = useToast();
+  const lastCtrlCTimeRef = useRef<number>(0);
+
   // Single ctrl+c handler that walks the responder chain
   useKeyboard((key) => {
     if (!key.ctrl || key.name !== "c") return;
@@ -76,8 +80,19 @@ export function KeyboardLayerProvider({ children }: { children: React.ReactNode 
       }
     };
 
-    // No responder handled it — exit
-    renderer.destroy();
+    // No responder handled it (input bar is empty and no dialog open)
+    const now = Date.now();
+    if (now - lastCtrlCTimeRef.current < 2000) {
+      // Confirmed exit on double Ctrl+C
+      renderer.destroy();
+    } else {
+      lastCtrlCTimeRef.current = now;
+      toast.show({
+        variant: "info",
+        message: "Press Ctrl+C again to exit (Use Ctrl+Shift+C or Shift+Drag to copy)",
+        duration: 2000,
+      });
+    }
   });
 
   return (
