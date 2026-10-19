@@ -3,7 +3,7 @@ import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import type { Message } from "../../hooks/use-chat";
 import { Mode, type ModeType } from "@thinktocode/shared";
-import { TextAttributes } from "@opentui/core";
+import { TextAttributes, SyntaxStyle } from "@opentui/core";
 
 type ClientMessagePart = Message["parts"][number];
 type ToolPart = Extract<ClientMessagePart, { type: `tool-${string}` | "dynamic-tool" }>;
@@ -15,6 +15,19 @@ type Props = {
   durationMs?: number;
   streaming?: boolean;
 };
+
+
+let defaultSyntaxStyle: SyntaxStyle | null = null;
+function getSyntaxStyle(): SyntaxStyle {
+  if (!defaultSyntaxStyle) {
+    try {
+      defaultSyntaxStyle = SyntaxStyle.create();
+    } catch {
+      // Fallback if needed
+    }
+  }
+  return defaultSyntaxStyle!;
+}
 
 function formatToolName(name: string): string {
   return name
@@ -230,14 +243,29 @@ export function BotMessage({
         }
 
         if (group.type === "text") {
-          const text = group.parts
+          const rawText = group.parts
             .filter((p) => p.type === "text")
             .map((p) => (p as { text?: string }).text || "")
             .join("");
 
+          if (!rawText.trim()) return null;
+
+          // Strip HTML breaks commonly output by LLMs in tables and lists
+          const cleanText = rawText.replace(/<br\s*\/?>/gi, "\n");
+
           return (
             <box key={group.key} paddingX={3} width="100%" paddingTop={i === 0 ? 0 : 1}>
-              <text>{text}</text>
+              <markdown
+                content={cleanText}
+                syntaxStyle={getSyntaxStyle()}
+                streaming={streaming}
+                tableOptions={{
+                  style: "grid",
+                  borders: true,
+                  wrapMode: "word",
+                  cellPadding: 1,
+                }}
+              />
             </box>
           );
         }
