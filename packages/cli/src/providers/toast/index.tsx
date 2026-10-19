@@ -4,6 +4,7 @@ import {
   useRef, 
   useState, 
   useCallback,
+  useMemo,
   useEffect
 } from "react";
 import type { ReactNode } from "react";
@@ -30,8 +31,6 @@ export function useToast(): ToastContextValue {
 
 type InternalToast = ToastOptions & {
   count: number;
-  remainingMs: number;
-  totalMs: number;
 };
 
 type ToastProviderProps = {
@@ -41,66 +40,53 @@ type ToastProviderProps = {
 export function ToastProvider({ children }: ToastProviderProps) {
   const [currentToast, setCurrentToast] = useState<InternalToast | null>(null);
   const timeoutHandleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const intervalHandleRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const clearTimers = useCallback(() => {
+  const clearTimer = useCallback(() => {
     if (timeoutHandleRef.current) {
       clearTimeout(timeoutHandleRef.current);
       timeoutHandleRef.current = null;
     }
-    if (intervalHandleRef.current) {
-      clearInterval(intervalHandleRef.current);
-      intervalHandleRef.current = null;
-    }
   }, []);
 
-  const show = useCallback((options: ToastOptions) => {
-    const duration = options.duration ?? DEFAULT_DURATION;
-    clearTimers();
+  const show = useCallback(
+    (options: ToastOptions) => {
+      const duration = options.duration ?? DEFAULT_DURATION;
+      clearTimer();
 
-    setCurrentToast((prev) => {
-      // If same message, bump the count badge instead of jarring reload
-      if (prev && prev.message === options.message) {
-        return {
-          ...prev,
-          variant: options.variant ?? prev.variant ?? "info",
-          count: prev.count + 1,
-          remainingMs: duration,
-          totalMs: duration,
-        };
-      }
-      return {
-        variant: options.variant ?? "info",
-        ...options,
-        count: 1,
-        remainingMs: duration,
-        totalMs: duration,
-      };
-    });
-
-    // Tick remainingMs every 100ms for smooth decay bar
-    intervalHandleRef.current = setInterval(() => {
       setCurrentToast((prev) => {
-        if (!prev) return null;
-        const nextRemaining = prev.remainingMs - 100;
-        if (nextRemaining <= 0) return null;
-        return { ...prev, remainingMs: nextRemaining };
+        // If same message, bump the count badge instead of jarring reload
+        if (prev && prev.message === options.message) {
+          return {
+            ...prev,
+            variant: options.variant ?? prev.variant ?? "info",
+            count: prev.count + 1,
+          };
+        }
+        return {
+          variant: options.variant ?? "info",
+          ...options,
+          count: 1,
+        };
       });
-    }, 100);
 
-    timeoutHandleRef.current = setTimeout(() => {
-      clearTimers();
-      setCurrentToast(null);
-    }, duration);
-  }, [clearTimers]);
+      timeoutHandleRef.current = setTimeout(() => {
+        clearTimer();
+        setCurrentToast(null);
+      }, duration);
+    },
+    [clearTimer]
+  );
 
   useEffect(() => {
-    return () => clearTimers();
-  }, [clearTimers]);
+    return () => clearTimer();
+  }, [clearTimer]);
 
-  const value: ToastContextValue = {
-    show,
-  };
+  const value = useMemo<ToastContextValue>(
+    () => ({
+      show,
+    }),
+    [show]
+  );
 
   return (
     <ToastContext.Provider value={value}>
@@ -132,11 +118,6 @@ function Toast({ currentToast }: ToastProps) {
     ? variantColors[currentToast.variant]
     : variantColors.info;
 
-  const totalBarWidth = 14;
-  const ratio = Math.max(0, Math.min(1, currentToast.remainingMs / currentToast.totalMs));
-  const filled = Math.round(ratio * totalBarWidth);
-  const decayBar = "━".repeat(filled) + "─".repeat(totalBarWidth - filled);
-
   return (
     <box
       position="absolute"
@@ -154,22 +135,15 @@ function Toast({ currentToast }: ToastProps) {
       border={["left", "right"]}
       customBorderChars={SplitBorderChars}
     >
-      <box flexDirection="column" gap={0} width="100%">
-        <box flexDirection="row" justifyContent="space-between" width="100%">
-          <text fg="#E1E1E1" wrapMode="word">
-            {currentToast.message}
-          </text>
-          {currentToast.count > 1 && (
-            <text fg={borderColor}>
-              {" "}[×{currentToast.count}]
-            </text>
-          )}
-        </box>
-        <box marginTop={0.5}>
+      <box flexDirection="row" justifyContent="space-between" width="100%">
+        <text fg="#E1E1E1" wrapMode="word">
+          {currentToast.message}
+        </text>
+        {currentToast.count > 1 && (
           <text fg={borderColor}>
-            {decayBar}
+            {" "}[×{currentToast.count}]
           </text>
-        </box>
+        )}
       </box>
     </box>
   );
