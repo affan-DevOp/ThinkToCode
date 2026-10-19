@@ -21,6 +21,7 @@ function resolveBashCommand(cmd: string): { command: string[]; env?: Record<stri
 }
 import { mkdir, readFile, readdir, stat, writeFile } from "fs/promises";
 import { checkpointManager } from "./checkpoints";
+import { checkFileDiagnostics } from "./diagnostics";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { toolInputSchemas, Mode, type ModeType } from "@thinktocode/shared";
 
@@ -145,12 +146,15 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
     case "writeFile": {
       const { path, content } = toolInputSchemas.writeFile.parse(input);
       const { cwd, resolved } = resolveInsideCwd(path);
+      checkpointManager.captureFileBeforeMutation(resolved, relative(cwd, resolved));
       await mkdir(dirname(resolved), { recursive: true });
       await writeFile(resolved, content, "utf-8");
+      const diag = checkFileDiagnostics(resolved, content);
       return {
         success: true as const,
         path: relative(cwd, resolved),
         bytesWritten: Buffer.byteLength(content, "utf-8"),
+        ...(diag ? { diagnostics: diag } : {}),
       };
     }
     case "editFile": {
@@ -212,10 +216,12 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
       }
 
       await writeFile(resolved, fileContent, "utf-8");
+      const diag = checkFileDiagnostics(resolved, fileContent);
       return { 
         success: true as const, 
         path: relative(cwd, resolved),
         hunksApplied: hunks.length,
+        ...(diag ? { diagnostics: diag } : {}),
       };
     }
     case "bash": {
