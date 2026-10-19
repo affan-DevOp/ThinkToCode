@@ -10,6 +10,7 @@ import { performLogin } from "../../lib/oauth";
 import { clearAuth } from "../../lib/auth";
 import { openBillingPortal, openUpgradeCheckout } from "../../lib/upgrade";
 import { checkpointManager } from "../../lib/checkpoints";
+import { copyToClipboard } from "../../lib/clipboard";
 
 export const COMMANDS: Command[] = [
   {

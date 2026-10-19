@@ -19,6 +19,7 @@ import { getErrorMessage } from "../lib/http-errors";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { useDialog } from "../providers/dialog";
 import { ConfirmBashDialogContent } from "../components/dialogs";
+import { copyToClipboard } from "../lib/clipboard";
 
 type SessionData = InferResponseType<(typeof apiClient.sessions)[":id"]["$get"], 200>;
 
@@ -174,6 +175,30 @@ function SessionChat({
     if (key.name === "escape" && isTopLayer("base") && status === "streaming") {
       key.preventDefault();
       interrupt();
+    }
+
+    // Ctrl+Shift+C copies the last assistant response
+    if (key.ctrl && key.shift && key.name === "c") {
+      key.preventDefault();
+      const lastAssistant = messages.findLast((m) => m.role === "assistant");
+      if (lastAssistant) {
+        const text = lastAssistant.parts
+          .filter((p) => p.type === "text")
+          .map((p) => (p as { text: string }).text)
+          .join("");
+
+        if (text) {
+          void copyToClipboard(text).then((ok) => {
+            if (ok) {
+              toast.show({
+                variant: "success",
+                message: "✓ Copied last response to clipboard",
+                duration: 2500,
+              });
+            }
+          });
+        }
+      }
     }
   });
 
