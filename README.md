@@ -8,10 +8,10 @@ ThinkToCode is an intelligent agentic coding assistant that runs directly in you
 
 ## 📸 Interface Preview
 
-![ThinkToCode Terminal UI](media/cli-interface.png)
+![ThinkToCode Terminal UI](media/hero-banner.png)
 
 <p align="center">
-  <em>ThinkToCode CLI streaming real-time model reasoning, local tool execution, and latency metrics.</em>
+  <em>ThinkToCode CLI — Fast, autonomous agentic coding directly from your terminal.</em>
 </p>
 
 ---
@@ -43,12 +43,12 @@ ThinkToCode is an intelligent agentic coding assistant that runs directly in you
 
 ---
 
-## 🖼️ Gallery
+## 🖼️ TUI Showcase
 
-| Sessions Workspace | Customer Billing Portal |
+| Slash Command Menu (`/`) | Interactive Sessions Workspace (`Ctrl+O`) |
 | :---: | :---: |
-| ![Sessions Dialog](media/sessions-manager.png) | ![Billing Portal](media/billing-portal.png) |
-| *Session switcher with search & one-key deletion* | *Polar customer portal with credit metering* |
+| ![Command Menu](media/command-menu.png) | ![Sessions Manager](media/sessions-manager.png) |
+| *Quick command palette (`/new`, `/models`, `/sessions`, `/theme`)* | *Cloud-synced session manager with instant search & deletion* |
 
 ---
 
@@ -79,7 +79,7 @@ ThinkToCode/
 ### 1. Clone & Install Dependencies
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/affan-DevOp/ThinkToCode.git
 cd ThinkToCode
 bun install
 ```
@@ -153,10 +153,11 @@ bun dev:cli
 | Shortcut | Context | Action |
 | :--- | :--- | :--- |
 | **`Tab`** | Main Input | Toggle between **Plan Mode** and **Build Mode** |
+| **`/`** | Main Input | Open Command Menu (`/new`, `/models`, `/agents`, `/theme`...) |
 | **`Ctrl+O`** | Global | Open Sessions Dialog |
 | **`Ctrl+M`** | Global | Open Model Selector Dialog |
 | **`Del` / `Ctrl+D`** | Sessions Dialog | Delete selected session |
-| **`Enter`** | Sessions Dialog | Open / Switch to selected session |
+| **`Enter`** | Dialogs | Confirm / Switch selection |
 | **`Esc`** | Dialogs | Close active dialog / modal |
 
 ---
