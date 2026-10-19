@@ -69,6 +69,18 @@ function SessionChat({
   const { mode, model } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
   const dialog = useDialog();
+  const toast = useToast();
+
+  const onCircuitBreakerTripped = useCallback(
+    (reason: string) => {
+      toast.show({
+        variant: "error",
+        message: "⚠️ Circuit Breaker: " + reason,
+        duration: 7000,
+      });
+    },
+    [toast],
+  );
 
   const requestBashApproval = useCallback(
     (command: string, reason?: string): Promise<boolean> => {
@@ -108,7 +120,7 @@ function SessionChat({
   const { messages, status, submit, abort, interrupt, error } = useChat(
     session.id,
     initialMessages,
-    { requestBashApproval },
+    { requestBashApproval, onCircuitBreakerTripped },
   );
   const hasSubmittedInitialPromptRef = useRef(false);
 

@@ -18,6 +18,7 @@ import { apiClient } from "../lib/api-client";
 import { getAuth } from "../lib/auth";
 import { executeLocalTool } from "../lib/local-tools";
 import { isDestructiveCommand } from "../lib/guardrails";
+import { CircuitBreaker, type CircuitBreakerConfig } from "../lib/circuit-breaker";
 
 export type ChatMessageMetadata = {
   mode?: ModeType;
@@ -37,6 +38,8 @@ export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
 export type UseChatOptions = {
   requestBashApproval?: (command: string, reason?: string) => Promise<boolean>;
+  onCircuitBreakerTripped?: (reason: string) => void;
+  circuitBreakerConfig?: CircuitBreakerConfig;
 };
 
 export function useChat(
@@ -44,6 +47,11 @@ export function useChat(
   initialMessages: Message[],
   options?: UseChatOptions,
 ) {
+  const circuitBreaker = useMemo(
+    () => new CircuitBreaker(options?.circuitBreakerConfig),
+    [options?.circuitBreakerConfig],
+  );
+
   const transport = useMemo(() => {
     return new DefaultChatTransport<Message>({
       api: apiClient.chat.$url().toString(),
@@ -84,6 +92,17 @@ export function useChat(
       const mode = chat.messages.at(-1)?.metadata?.mode ?? "BUILD";
 
       const run = async () => {
+        // 1. Doom-Loop Circuit Breaker Guard
+        const check = circuitBreaker.check(toolCall.toolName, toolCall.input);
+        if (check.tripped) {
+          options?.onCircuitBreakerTripped?.(check.reason ?? "Repetitive loop detected");
+          throw new Error(
+            `[CIRCUIT BREAKER TRIGGERED]: Execution halted because ${check.reason}. ` +
+            `Please stop repeating this action, explain what went wrong to the user, and propose an alternative strategy or ask for clarification.`,
+          );
+        }
+
+        // 2. Destructive Bash Command Guardrail
         if (toolCall.toolName === "bash") {
           let command = "";
           try {
@@ -110,21 +129,24 @@ export function useChat(
       };
 
       void run()
-        .then((output) =>
-          chat.addToolOutput({
+        .then((output) => {
+          circuitBreaker.recordResult(toolCall.toolName, toolCall.input, true);
+          return chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
             toolCallId: toolCall.toolCallId,
             output,
-          }),
-        )
-        .catch((error) =>
-          chat.addToolOutput({
+          });
+        })
+        .catch((error) => {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          circuitBreaker.recordResult(toolCall.toolName, toolCall.input, false, errorMsg);
+          return chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
             toolCallId: toolCall.toolCallId,
             state: "output-error",
-            errorText: error instanceof Error ? error.message : String(error),
-          }),
-        );
+            errorText: errorMsg,
+          });
+        });
     },
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   });
@@ -134,6 +156,7 @@ export function useChat(
     status: chat.status,
     error: chat.error,
     submit: (params: { userText: string; mode: ModeType; model: SupportedChatModelId }) => {
+      circuitBreaker.reset();
       return chat.sendMessage({
         text: params.userText,
         metadata: {
