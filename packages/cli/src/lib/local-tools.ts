@@ -1,5 +1,5 @@
 
-import { existsSync } from "fs";
+import { existsSync, readdirSync } from "fs";
 
 function resolveGrepCommand(): string {
   if (process.platform === "win32") {
@@ -25,7 +25,7 @@ import { checkFileDiagnostics } from "./diagnostics";
 import { applyFuzzyUnifiedDiff } from "./fuzzy-patch";
 import { buildSemanticRepoMap } from "./repo-map";
 import { createSwarmPlan } from "./dag-swarm";
-import { dirname, isAbsolute, join, relative, resolve } from "path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import { toolInputSchemas, Mode, type ModeType } from "@thinktocode/shared";
 
 const MAX_FILE_SIZE = 10_000;
@@ -48,16 +48,47 @@ function getWorkspaceRoot(): string {
   return process.cwd();
 }
 
-function resolveInsideCwd(path: string) {
+function ensureWorkspaceRoot(): string {
   const root = getWorkspaceRoot();
+  if (process.cwd() !== root) {
+    try {
+      process.chdir(root);
+    } catch {
+      // ignore
+    }
+  }
+  return root;
+}
+
+ensureWorkspaceRoot();
+
+function resolveInsideCwd(path: string) {
+  const root = ensureWorkspaceRoot();
   const cwd = process.cwd();
 
-  // Try direct resolution from cwd first
-  let target = resolve(cwd, path);
+  // Try direct resolution from root first
+  let target = resolve(root, path);
 
-  // If target does not exist or target escapes cwd, try relative to workspace root
-  if ((!existsSync(target) || relative(cwd, target).startsWith("..")) && existsSync(resolve(root, path))) {
-    target = resolve(root, path);
+  // If target doesn't exist directly, check relative to cwd or case-insensitive match
+  if (!existsSync(target)) {
+    const cwdTarget = resolve(cwd, path);
+    if (existsSync(cwdTarget)) {
+      target = cwdTarget;
+    } else {
+      try {
+        const dir = dirname(target);
+        const base = basename(target).toLowerCase();
+        if (existsSync(dir)) {
+          const files = readdirSync(dir);
+          const match = files.find((f) => f.toLowerCase() === base);
+          if (match) {
+            target = join(dir, match);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
   }
 
   // Security guard: ensure target is within either the workspace root or cwd
@@ -71,7 +102,7 @@ function resolveInsideCwd(path: string) {
     throw new Error("Path is outside the project directory");
   }
 
-  return { cwd: isInsideCwd ? cwd : root, resolved: target };
+  return { cwd: root, resolved: target };
 }
 
 function truncate(value: string, limit: number) {
@@ -169,17 +200,22 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
       files.sort();
       return { files, ...(truncated ? { truncated: true } : {}) };
     }
-    case "grep": {
+        case "grep": {
       const { pattern, path, include } = toolInputSchemas.grep.parse(input);
       const { cwd, resolved } = resolveInsideCwd(path);
       const args = [
-        "-rn",
+        "-rni",
         "--color=never",
         "--exclude-dir=node_modules",
         "--exclude-dir=.git",
         "-E",
       ];
-      if (include) args.push(`--include=${include}`);
+      if (include) {
+        let clean = include.replace(/^\*\*[\/\\]/, "").trim();
+        if (clean && clean !== "*" && clean !== "**/*") {
+          args.push(`--include=${clean}`);
+        }
+      }
       args.push(pattern, resolved);
 
       const proc = Bun.spawn([resolveGrepCommand(), ...args], { cwd, stdout: "pipe", stderr: "pipe" });

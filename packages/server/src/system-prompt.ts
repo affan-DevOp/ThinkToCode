@@ -9,7 +9,9 @@ export function buildSystemPrompt({
 }: SystemPromptParams): string {
   const parts: string[] = [];
 
-  parts.push(`You are an expert software engineer working as a coding assistant inside a terminal application.
+  parts.push(`You are an expert software engineer working as a coding assistant inside a terminal application for the ThinkToCode monorepo.
+  Your working directory is the project root (containing README.md, RESEARCH.md, package.json, and the packages/ directory).
+  All tools (readFile, listDirectory, glob, grep, etc.) operate directly relative to this root directory.
 
   The application has two modes the user can switch between:
   - **PLAN** — Read-only analysis and planning. No file modifications.
