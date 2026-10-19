@@ -1,0 +1,162 @@
+import { useCallback, useRef, useState, useMemo, useEffect, type ReactNode } from "react";
+import { TextAttributes, type InputRenderable, type ScrollBoxRenderable } from "@opentui/core";
+import { useKeyboard } from "@opentui/react";
+import { useKeyboardLayer } from "../providers/keyboard-layer";
+import { useTheme } from "../providers/theme";
+import { fuzzyMatch } from "../lib/fuzzy";
+
+const MAX_VISIBLE_ITEMS = 6;
+
+type DialogSearchListProps<T> = {
+  items: T[];
+  onSelect: (item: T) => void;
+  onHighlight?: (item: T) => void;
+  onDelete?: (item: T) => void;
+  filterFn?: (item: T, query: string) => boolean;
+  renderItem: (item: T, isSelected: boolean) => ReactNode;
+  getKey: (item: T) => string;
+  placeholder?: string;
+  emptyText?: string;
+  footer?: ReactNode;
+};
+
+export function DialogSearchList<T>({
+  items,
+  onSelect,
+  onHighlight,
+  onDelete,
+  filterFn,
+  renderItem,
+  getKey,
+  placeholder = "Search",
+  emptyText = "No results",
+  footer,
+}: DialogSearchListProps<T>) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [searchValue, setSearchValue] = useState("");
+  const inputRef = useRef<InputRenderable>(null);
+  const scrollRef = useRef<ScrollBoxRenderable>(null);
+  const { isTopLayer } = useKeyboardLayer();
+  const { colors } = useTheme();
+
+  const handleContentChange = useCallback(() => {
+    const text = inputRef.current?.value ?? "";
+    setSearchValue(text);
+    setSelectedIndex(0);
+
+    const scrollbox = scrollRef.current;
+    if (scrollbox) {
+      scrollbox.scrollTo(0);
+    }
+  }, []);
+    
+  const filtered = useMemo(() => {
+    if (!searchValue.trim()) return items;
+    return items
+      .map((item) => {
+        const key = getKey(item);
+        const match = fuzzyMatch(searchValue, key);
+        const fallback = filterFn ? filterFn(item, searchValue) : false;
+        return {
+          item,
+          matched: match.matched || fallback,
+          score: match.matched ? match.score : 0,
+        };
+      })
+      .filter(({ matched }) => matched)
+      .sort((a, b) => b.score - a.score)
+      .map(({ item }) => item);
+  }, [items, searchValue, getKey, filterFn]);
+
+  // Keep selected index within valid range
+  useEffect(() => {
+    setSelectedIndex((idx) => {
+      if (filtered.length === 0) return 0;
+      return Math.min(idx, filtered.length - 1);
+    });
+  }, [filtered.length]);
+
+  const visibleHeight = Math.min(filtered.length, MAX_VISIBLE_ITEMS);
+
+  useKeyboard((key) => {
+    if (!isTopLayer("dialog")) return;
+
+    if (key.name === "return" || key.name === "enter") {
+      const item = filtered[selectedIndex];
+      if (item) {
+        onSelect(item);
+      }
+    } else if (onDelete && (key.name === "delete" || (key.ctrl && key.name === "d"))) {
+      key.preventDefault();
+      const item = filtered[selectedIndex];
+      if (item) {
+        onDelete(item);
+      }
+    } else if (key.name === "up") {
+      setSelectedIndex((i) => {
+        const newIndex = Math.max(0, i - 1);
+        const sb = scrollRef.current;
+        if (sb && newIndex < sb.scrollTop) {
+          sb.scrollTo(newIndex);
+        }
+        const item = filtered[newIndex];
+        if (item && onHighlight) onHighlight(item);
+        return newIndex;
+      });
+    } else if (key.name === "down") {
+      setSelectedIndex((i) => {
+        const newIndex = Math.min(filtered.length - 1, i + 1);
+        const sb = scrollRef.current;
+        if (sb) {
+          const viewportHeight = sb.viewport.height;
+          const visibleEnd = sb.scrollTop + viewportHeight - 1;
+          if (newIndex > visibleEnd) {
+            sb.scrollTo(newIndex - viewportHeight + 1);
+          }
+        }
+        const item = filtered[newIndex];
+        if (item && onHighlight) onHighlight(item);
+        return newIndex;
+      });
+    }
+  });
+
+  return (
+    <box flexDirection="column" gap={1}>
+      <input
+        ref={inputRef}
+        placeholder={placeholder}
+        focused
+        onContentChange={handleContentChange}
+      />
+      {filtered.length === 0 ? (
+        <text attributes={TextAttributes.DIM}>
+          {emptyText}
+        </text>
+      ) : (
+        <scrollbox ref={scrollRef} height={visibleHeight}>
+          {filtered.map((item, i) => {
+            const isSelected = i === selectedIndex;
+            return (
+              <box
+                key={getKey(item)}
+                flexDirection="row"
+                height={1}
+                overflow="hidden"
+                backgroundColor={isSelected ? colors.selection : undefined}
+                onMouseMove={() => {
+                  setSelectedIndex(i);
+                  if (onHighlight) onHighlight(item);
+                }}
+                onMouseDown={() => onSelect(item)}
+              >
+                {renderItem(item, isSelected)}
+              </box>
+            );
+          })}
+        </scrollbox>
+      )}
+      {footer && <box paddingTop={0}>{footer}</box>}
+    </box>
+  );
+}
