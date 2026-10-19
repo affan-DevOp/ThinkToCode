@@ -9,6 +9,7 @@ import type { Command } from "./types";
 import { performLogin } from "../../lib/oauth";
 import { clearAuth } from "../../lib/auth";
 import { openBillingPortal, openUpgradeCheckout } from "../../lib/upgrade";
+import { checkpointManager } from "../../lib/checkpoints";
 
 export const COMMANDS: Command[] = [
   {

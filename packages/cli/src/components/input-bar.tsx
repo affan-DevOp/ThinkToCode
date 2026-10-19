@@ -20,6 +20,7 @@ import { useDialog } from "../providers/dialog";
 import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
 import { Mode } from "@thinktocode/shared";
+import { checkpointManager } from "../lib/checkpoints";
 
 const MAX_VISIBLE_MENTIONS = 8;
 const CURRENT_DIRECTORY = process.cwd();
@@ -353,9 +354,28 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     const text = textarea.plainText.trim();
     if (text.length === 0) return;
 
+    if (text.toLowerCase() === "/undo") {
+      textarea.setText("");
+      const result = checkpointManager.undo();
+      if (result.success) {
+        toast.show({
+          variant: "success",
+          message: `Reverted ${result.fileCount} file(s): ${result.revertedFiles.join(", ")}`,
+          duration: 6000,
+        });
+      } else {
+        toast.show({
+          variant: "info",
+          message: result.message,
+          duration: 4000,
+        });
+      }
+      return;
+    }
+
     onSubmit(text);
     textarea.setText("");
-  }, [disabled, onSubmit])
+  }, [disabled, onSubmit, toast])
 
   const handleMentionExecute = useCallback((index: number) => {
     const textarea = textareaRef.current;

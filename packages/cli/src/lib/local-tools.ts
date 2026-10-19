@@ -20,6 +20,7 @@ function resolveBashCommand(cmd: string): { command: string[]; env?: Record<stri
   return { command: ["bash", "-c", cmd] };
 }
 import { mkdir, readFile, readdir, stat, writeFile } from "fs/promises";
+import { checkpointManager } from "./checkpoints";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { toolInputSchemas, Mode, type ModeType } from "@thinktocode/shared";
 

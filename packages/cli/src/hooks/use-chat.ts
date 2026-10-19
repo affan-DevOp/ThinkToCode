@@ -19,6 +19,8 @@ import { getAuth } from "../lib/auth";
 import { executeLocalTool } from "../lib/local-tools";
 import { isDestructiveCommand } from "../lib/guardrails";
 import { CircuitBreaker, type CircuitBreakerConfig } from "../lib/circuit-breaker";
+import { checkpointManager } from "../lib/checkpoints";
+import { useEffect } from "react";
 
 export type ChatMessageMetadata = {
   mode?: ModeType;
