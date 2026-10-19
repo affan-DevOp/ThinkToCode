@@ -154,16 +154,69 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
       };
     }
     case "editFile": {
-      const { path, oldString, newString } = toolInputSchemas.editFile.parse(input);
-      const { cwd, resolved } = resolveInsideCwd(path);
-      const content = await readFile(resolved, "utf-8");
-      const occurrences = content.split(oldString).length - 1;
+      const parsed = toolInputSchemas.editFile.parse(input);
+      const hunks: { oldString: string; newString: string }[] =
+        parsed.edits && parsed.edits.length > 0
+          ? parsed.edits
+          : parsed.oldString != null && parsed.newString != null
+            ? [{ oldString: parsed.oldString, newString: parsed.newString }]
+            : [];
 
-      if (occurrences === 0) throw new Error("oldString not found in file");
-      if (occurrences > 1) throw new Error(`oldString is ambiguous; found ${occurrences} matches`);
+      if (hunks.length === 0) {
+        throw new Error("Either (oldString and newString) or edits array must be provided for editFile");
+      }
 
-      await writeFile(resolved, content.replace(oldString, newString), "utf-8");
-      return { success: true as const, path: relative(cwd, resolved) };
+      const { cwd, resolved } = resolveInsideCwd(parsed.path);
+      let fileContent = await readFile(resolved, "utf-8");
+
+      // Validate all hunks before applying any modifications
+      const matches: { start: number; end: number; newString: string; oldString: string }[] = [];
+
+      for (let i = 0; i < hunks.length; i++) {
+        const hunk = hunks[i]!;
+        const occurrences = fileContent.split(hunk.oldString).length - 1;
+
+        if (occurrences === 0) {
+          throw new Error(`Hunk ${i + 1}/${hunks.length} failed: oldString not found in ${parsed.path}`);
+        }
+        if (occurrences > 1) {
+          throw new Error(`Hunk ${i + 1}/${hunks.length} failed: oldString is ambiguous (${occurrences} matches found in ${parsed.path})`);
+        }
+
+        const index = fileContent.indexOf(hunk.oldString);
+        matches.push({
+          start: index,
+          end: index + hunk.oldString.length,
+          newString: hunk.newString,
+          oldString: hunk.oldString,
+        });
+      }
+
+      // Check for overlapping hunks
+      matches.sort((a, b) => a.start - b.start);
+      for (let i = 0; i < matches.length - 1; i++) {
+        const current = matches[i]!;
+        const next = matches[i + 1]!;
+        if (current.end > next.start) {
+          throw new Error(`Overlapping edit hunks detected in ${parsed.path}`);
+        }
+      }
+
+      // Capture pre-modification snapshot
+      checkpointManager.captureFileBeforeMutation(resolved, relative(cwd, resolved));
+
+      // Apply substitutions from back to front
+      for (let i = matches.length - 1; i >= 0; i--) {
+        const match = matches[i]!;
+        fileContent = fileContent.slice(0, match.start) + match.newString + fileContent.slice(match.end);
+      }
+
+      await writeFile(resolved, fileContent, "utf-8");
+      return { 
+        success: true as const, 
+        path: relative(cwd, resolved),
+        hunksApplied: hunks.length,
+      };
     }
     case "bash": {
       const { command, timeout = DEFAULT_TIMEOUT } = toolInputSchemas.bash.parse(input);

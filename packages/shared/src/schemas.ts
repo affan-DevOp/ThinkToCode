@@ -32,8 +32,17 @@ export const toolInputSchemas = {
   }),
   editFile: z.object({
     path: z.string().describe("Relative path to edit"),
-    oldString: z.string().describe("Exact text to replace; must be unique"),
-    newString: z.string().describe("Replacement text"),
+    oldString: z.string().optional().describe("Exact text to replace (for single edit)"),
+    newString: z.string().optional().describe("Replacement text (for single edit)"),
+    edits: z
+      .array(
+        z.object({
+          oldString: z.string().describe("Exact text hunk to replace"),
+          newString: z.string().describe("Replacement text for this hunk"),
+        })
+      )
+      .optional()
+      .describe("Optional list of atomic hunks to replace simultaneously"),
   }),
   bash: z.object({
     command: z.string().describe("Shell command to run"),
@@ -69,7 +78,8 @@ export const buildToolContracts = {
     inputSchema: toolInputSchemas.writeFile,
   }),
   editFile: tool({
-    description: "Replace exact text in a file under the current project directory.",
+    description:
+      "Replace exact text in a file under the current project directory. Supports both single-hunk replacement (oldString/newString) and atomic multi-hunk replacements (edits: [{ oldString, newString }]).",
     inputSchema: toolInputSchemas.editFile,
   }),
   bash: tool({
