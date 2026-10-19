@@ -10,9 +10,32 @@ import { performLogin } from "../../lib/oauth";
 import { clearAuth } from "../../lib/auth";
 import { openBillingPortal, openUpgradeCheckout } from "../../lib/upgrade";
 import { checkpointManager } from "../../lib/checkpoints";
-import { copyToClipboard } from "../../lib/clipboard";
+import { copyToClipboard, getLatestAssistantResponse } from "../../lib/clipboard";
 
 export const COMMANDS: Command[] = [
+  {
+    name: "copy",
+    description: "Copy latest assistant response to clipboard",
+    value: "/copy",
+    action: async (ctx) => {
+      const text = getLatestAssistantResponse();
+      if (text) {
+        const ok = await copyToClipboard(text);
+        if (ok) {
+          ctx.toast.show({
+            variant: "success",
+            message: "✓ Copied latest response to clipboard",
+            duration: 3000,
+          });
+          return;
+        }
+      }
+      ctx.toast.show({
+        variant: "info",
+        message: "No assistant response available to copy yet",
+      });
+    },
+  },
   {
     name: "new",
     description: "Start a new conversation",

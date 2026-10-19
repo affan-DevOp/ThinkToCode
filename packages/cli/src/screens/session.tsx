@@ -19,7 +19,7 @@ import { getErrorMessage } from "../lib/http-errors";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { useDialog } from "../providers/dialog";
 import { ConfirmBashDialogContent } from "../components/dialogs";
-import { copyToClipboard } from "../lib/clipboard";
+import { copyToClipboard, setLatestAssistantResponse } from "../lib/clipboard";
 
 type SessionData = InferResponseType<(typeof apiClient.sessions)[":id"]["$get"], 200>;
 
@@ -211,6 +211,20 @@ function SessionChat({
       model: initialPrompt.model,
     });
   }, [initialPrompt, submit]);
+  // Keep latest assistant response in sync for /copy command
+  useEffect(() => {
+    const lastAssistant = messages.findLast((m) => m.role === "assistant");
+    if (lastAssistant) {
+      const text = lastAssistant.parts
+        .filter((p) => p.type === "text")
+        .map((p) => (p as { text: string }).text)
+        .join("");
+      if (text) {
+        setLatestAssistantResponse(text);
+      }
+    }
+  }, [messages]);
+
 
   const groupedMessages = useMemo(() => groupAssistantMessages(messages), [messages]);
 

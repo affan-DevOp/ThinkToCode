@@ -1,3 +1,13 @@
+let latestAssistantResponse = "";
+
+export function setLatestAssistantResponse(text: string) {
+  latestAssistantResponse = text;
+}
+
+export function getLatestAssistantResponse(): string {
+  return latestAssistantResponse;
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   if (!text) return false;
 
