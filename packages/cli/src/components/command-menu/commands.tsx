@@ -21,6 +21,45 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "undo",
+    description: "Revert last file change checkpoint",
+    value: "/undo",
+    action: (ctx) => {
+      const result = checkpointManager.undo();
+      if (result.success) {
+        ctx.toast.show({
+          variant: "success",
+          message: `Reverted ${result.fileCount} file(s): ${result.revertedFiles.join(", ")}`,
+        });
+      } else {
+        ctx.toast.show({
+          variant: "info",
+          message: result.message,
+        });
+      }
+    },
+  },
+  {
+    name: "repomap",
+    description: "Analyze project semantic AST map and token budget",
+    value: "/repomap",
+    action: async (ctx) => {
+      ctx.toast.show({ message: "Analyzing repository architecture..." });
+      try {
+        const { buildSemanticRepoMap } = await import("../../lib/repo-map");
+        const map = await buildSemanticRepoMap(process.cwd(), { maxTokens: 1800 });
+        ctx.toast.show({
+          variant: "success",
+          message: `Indexed ${map.totalFilesScanned} files (~${map.tokenEstimate} tokens, top ${map.topRankedFiles.length} files)`,
+          duration: 6000,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to generate repo map";
+        ctx.toast.show({ variant: "error", message: msg });
+      }
+    },
+  },
+  {
     name: "agents",
     description: "Switch agents",
     value: "/agents",

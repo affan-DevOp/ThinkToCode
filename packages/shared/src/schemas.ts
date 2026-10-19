@@ -11,6 +11,23 @@ export const modeSchema = z.enum([Mode.BUILD, Mode.PLAN]);
 export type ModeType = (typeof Mode)[keyof typeof Mode];
 
 export const toolInputSchemas = {
+  planSwarmDag: z.object({
+    goal: z.string().describe("High-level engineering task or refactor goal to decompose into a DAG"),
+    tasks: z
+      .array(
+        z.object({
+          id: z.string().describe("Unique sub-task ID"),
+          title: z.string().describe("Concise title"),
+          description: z.string().describe("Worker instructions"),
+          dependsOn: z.array(z.string()).describe("IDs of prerequisite tasks"),
+          targetFiles: z.array(z.string()).describe("Files to be created or modified by this sub-task"),
+          readOnlyContextFiles: z.array(z.string()).optional(),
+          verificationCommand: z.string().optional(),
+        })
+      )
+      .min(1)
+      .describe("List of atomic sub-tasks"),
+  }),
   repoMap: z.object({
     query: z.string().optional().describe("Optional natural language or keyword query to personalize rankings"),
   }),
@@ -68,6 +85,11 @@ export const toolInputSchemas = {
 } as const;
 
 export const readOnlyToolContracts = {
+  planSwarmDag: tool({
+    description:
+      "Validate and compile a Directed Acyclic Graph (DAG) of sub-tasks for multi-agent swarm execution. Computes Kahn's topological parallel execution waves, enforces write-set disjointness (auto-serializing conflicting file writes), and estimates token and latency savings.",
+    inputSchema: toolInputSchemas.planSwarmDag,
+  }),
   repoMap: tool({
     description:
       "Generate a compact (<1,800 token) Semantic Repository Map extracting top-ranked architectural signatures, interfaces, classes, and types across the codebase using BM25 and PageRank.",

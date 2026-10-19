@@ -24,6 +24,7 @@ import { checkpointManager } from "./checkpoints";
 import { checkFileDiagnostics } from "./diagnostics";
 import { applyFuzzyUnifiedDiff } from "./fuzzy-patch";
 import { buildSemanticRepoMap } from "./repo-map";
+import { createSwarmPlan } from "./dag-swarm";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { toolInputSchemas, Mode, type ModeType } from "@thinktocode/shared";
 
@@ -52,11 +53,36 @@ function truncate(value: string, limit: number) {
 }
 
 export async function executeLocalTool(toolName: string, input: unknown, mode: ModeType) {
-  if (mode === Mode.PLAN && !["repoMap", "readFile", "listDirectory", "glob", "grep"].includes(toolName)) {
+  if (mode === Mode.PLAN && !["planSwarmDag", "repoMap", "readFile", "listDirectory", "glob", "grep"].includes(toolName)) {
     throw new Error(`Tool ${toolName} is not available in PLAN mode`);
   }
 
   switch (toolName) {
+    case "planSwarmDag": {
+      const inputData = toolInputSchemas.planSwarmDag.parse(input);
+      const swarmPlan = createSwarmPlan({
+        goalSummary: inputData.goal,
+        architecturalNotes: "Decomposed multi-agent execution plan",
+        tasks: inputData.tasks,
+      });
+      return {
+        goalSummary: swarmPlan.dag.goalSummary,
+        wavesCount: swarmPlan.compiledPlan.waves.length,
+        criticalPathLength: swarmPlan.compiledPlan.criticalPathLength,
+        maxParallelism: swarmPlan.compiledPlan.maxParallelism,
+        autoSerializedPairs: swarmPlan.compiledPlan.autoSerializedPairs,
+        waves: swarmPlan.compiledPlan.waves.map((wave, idx) => ({
+          wave: idx + 1,
+          parallelTasks: wave.map((t) => ({
+            id: t.id,
+            title: t.title,
+            targetFiles: t.targetFiles,
+            dependsOn: t.dependsOn,
+          })),
+        })),
+        metrics: swarmPlan.metrics,
+      };
+    }
     case "repoMap": {
       const { query } = toolInputSchemas.repoMap.parse(input);
       const result = await buildSemanticRepoMap({
