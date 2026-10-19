@@ -178,7 +178,7 @@ function SessionChat({
     }
 
     // Ctrl+Shift+C copies the last assistant response
-    if (key.ctrl && key.shift && key.name === "c") {
+    if (key.ctrl && (key.shift || key.name === "C") && key.name.toLowerCase() === "c") {
       key.preventDefault();
       const lastAssistant = messages.findLast((m) => m.role === "assistant");
       if (lastAssistant) {
@@ -216,7 +216,35 @@ function SessionChat({
 
   return (
     <SessionShell
-      onSubmit={(text) => submit({ userText: text, mode, model })}
+      onSubmit={(text) => {
+        if (text.trim() === "/copy") {
+          const lastAssistant = messages.findLast((m) => m.role === "assistant");
+          if (lastAssistant) {
+            const replyText = lastAssistant.parts
+              .filter((p) => p.type === "text")
+              .map((p) => (p as { text: string }).text)
+              .join("");
+
+            if (replyText) {
+              void copyToClipboard(replyText).then((ok) => {
+                if (ok) {
+                  toast.show({
+                    variant: "success",
+                    message: "✓ Copied latest response to clipboard",
+                    duration: 3000,
+                  });
+                }
+              });
+            } else {
+              toast.show({ variant: "info", message: "No text to copy in latest response" });
+            }
+          } else {
+            toast.show({ variant: "info", message: "No assistant response to copy" });
+          }
+          return;
+        }
+        submit({ userText: text, mode, model });
+      }}
       loading={status === "submitted" || status === "streaming"}
       interruptible={status === "submitted" || status === "streaming"}
     >
