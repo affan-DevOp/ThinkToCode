@@ -47,7 +47,8 @@ ThinkToCode is an intelligent agentic coding assistant that runs directly in you
 
 | Slash Command Menu (`/`) | Interactive Sessions Workspace (`Ctrl+O`) |
 | :---: | :---: |
-| ![Command Menu](media/command-menu.png) | ![Sessions Manager](media/sessions-manager.png) |
+| ![Command Menu](media/command-menu.png) | <img width="707" height="393" alt="image" src="https://github.com/user-attachments/assets/dcaa0584-d8e8-4ccb-a4aa-0eba91437ea5" />
+) |
 | *Quick command palette (`/new`, `/models`, `/sessions`, `/theme`)* | *Cloud-synced session manager with instant search & deletion* |
 
 ---
