@@ -34,8 +34,31 @@ const MAX_MATCHES = 50;
 const MAX_OUTPUT = 20_000;
 const DEFAULT_TIMEOUT = 30_000;
 
+function getWorkspaceRoot(): string {
+  let curr = process.cwd();
+  while (curr !== dirname(curr)) {
+    if (
+      existsSync(join(curr, ".git")) ||
+      (existsSync(join(curr, "packages")) && existsSync(join(curr, "package.json")))
+    ) {
+      return curr;
+    }
+    curr = dirname(curr);
+  }
+  return process.cwd();
+}
+
 function resolveInsideCwd(path: string) {
-  const cwd = process.cwd();
+  let cwd = process.cwd();
+  const directResolved = resolve(cwd, path);
+
+  if (!existsSync(directResolved)) {
+    const root = getWorkspaceRoot();
+    if (root !== cwd && existsSync(resolve(root, path))) {
+      cwd = root;
+    }
+  }
+
   const resolved = resolve(cwd, path);
   const rel = relative(cwd, resolved);
 

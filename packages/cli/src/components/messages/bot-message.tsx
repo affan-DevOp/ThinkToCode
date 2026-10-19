@@ -46,33 +46,49 @@ function getToolDisplay(
 
   if (toolName === "readFile") {
     const p = (input as { path?: string })?.path || "";
-    return { prefix: "Read", detail: p, isBash: false };
+    return { prefix: "Read File", detail: p, isBash: false };
   }
 
   if (toolName === "writeFile") {
     const p = (input as { path?: string })?.path || "";
-    return { prefix: "Write", detail: p, isBash: false };
+    return { prefix: "Write File", detail: p, isBash: false };
   }
 
   if (toolName === "editFile") {
     const p = (input as { path?: string })?.path || "";
-    return { prefix: "Edit", detail: p, isBash: false };
+    return { prefix: "Edit File", detail: p, isBash: false };
+  }
+
+  if (toolName === "patchFile") {
+    const p = (input as { path?: string })?.path || "";
+    return { prefix: "Patch File", detail: p, isBash: false };
   }
 
   if (toolName === "listDirectory") {
     const p = (input as { path?: string })?.path || ".";
-    return { prefix: "List", detail: p, isBash: false };
+    return { prefix: "List Directory", detail: p, isBash: false };
   }
 
   if (toolName === "glob") {
-    const p = (input as { pattern?: string })?.pattern || "";
-    return { prefix: "Glob", detail: p, isBash: false };
+    const pat = (input as { pattern?: string })?.pattern || "";
+    const p = (input as { path?: string })?.path;
+    return { prefix: "Glob", detail: p ? `${pat} ${p}` : `${pat} .`, isBash: false };
   }
 
   if (toolName === "grep") {
     const pat = (input as { pattern?: string })?.pattern || "";
     const p = (input as { path?: string })?.path;
-    return { prefix: "Grep", detail: p ? `"${pat}" in ${p}` : `"${pat}"`, isBash: false };
+    return { prefix: "Grep", detail: p ? `"${pat}" ${p}` : `"${pat}" .`, isBash: false };
+  }
+
+  if (toolName === "repoMap") {
+    const q = (input as { query?: string })?.query;
+    return { prefix: "Repo Map", detail: q ? `"${q}"` : ".", isBash: false };
+  }
+
+  if (toolName === "planSwarmDag") {
+    const g = (input as { goal?: string })?.goal || "";
+    return { prefix: "Plan Swarm Dag", detail: g, isBash: false };
   }
 
   let genericArgs = "";
@@ -92,7 +108,7 @@ function getToolDisplay(
 }
 
 type PartGroup = {
-  type: ClientMessagePart["type"];
+  type: "text" | "reasoning" | "tools" | string;
   parts: ClientMessagePart[];
   key: string;
 };
@@ -102,13 +118,18 @@ function groupConsecutiveParts(parts: ClientMessagePart[]): PartGroup[] {
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]!;
+    const isCurrentTool = isToolPart(part);
     const lastGroup = groups[groups.length - 1];
+    const isLastTool = lastGroup && lastGroup.type === "tools";
 
-    if (lastGroup && lastGroup.type === part.type) {
+    if (isCurrentTool && isLastTool) {
+      lastGroup.parts.push(part);
+    } else if (isCurrentTool) {
+      groups.push({ type: "tools", parts: [part], key: `group-tools-${i}` });
+    } else if (lastGroup && lastGroup.type === part.type) {
       lastGroup.parts.push(part);
     } else {
-      const key = isToolPart(part) ? `group-tc-${part.toolCallId}` : `group-${part.type}-${i}`;
-      groups.push({ type: part.type, parts: [part], key });
+      groups.push({ type: part.type, parts: [part], key: `group-${part.type}-${i}` });
     }
   }
 
@@ -126,108 +147,85 @@ export function BotMessage({
 
   return (
     <box width="100%" alignItems="center">
-      {groupConsecutiveParts(parts).map((group, i) => (
-        <box key={group.key} width="100%" paddingTop={i === 0 ? 0 : 1}>
-          {group.parts.map((part, j) => {
-            if (part.type === "reasoning") {
-              return (
-                <box
-                  key={`reasoning-${j}`}
-                  border={["left"]}
-                  borderColor={colors.thinkingBorder}
-                  customBorderChars={{
-                    ...EmptyBorder,
-                    vertical: "│",
-                  }}
-                  width="100%"
-                  paddingX={2}
-                >
-                  <text attributes={TextAttributes.DIM}>
-                    <em fg={colors.thinking}>Thinking:</em> {part.text}
-                  </text>
-                </box>
-              );
-            }
+      {groupConsecutiveParts(parts).map((group, i) => {
+        if (group.type === "reasoning") {
+          return (
+            <box
+              key={group.key}
+              border={["left"]}
+              borderColor={colors.thinkingBorder}
+              customBorderChars={{
+                ...EmptyBorder,
+                vertical: "│",
+              }}
+              width="100%"
+              paddingX={2}
+              paddingTop={i === 0 ? 0 : 1}
+            >
+              {group.parts.map((p, j) => (
+                <text key={`r-${j}`} attributes={TextAttributes.DIM}>
+                  <em fg={colors.thinking}>Thinking:</em> {(p as { text?: string }).text}
+                </text>
+              ))}
+            </box>
+          );
+        }
 
-            if (isToolPart(part)) {
-              const toolName =
-                part.type === "dynamic-tool" ? part.toolName : part.type.slice("tool-".length);
-              const { prefix, detail, isBash } = getToolDisplay(toolName, part.input);
-              const isRunning =
-                part.state !== "output-available" && part.state !== "output-error";
-              const isError = part.state === "output-error";
-              const isSuccess = part.state === "output-available";
+        if (group.type === "tools") {
+          return (
+            <box
+              key={group.key}
+              border={["left"]}
+              borderColor={colors.thinkingBorder}
+              customBorderChars={{
+                ...EmptyBorder,
+                vertical: "│",
+              }}
+              width="100%"
+              paddingX={2}
+              paddingTop={i === 0 ? 0 : 1}
+              flexDirection="column"
+            >
+              {group.parts.map((part) => {
+                if (!isToolPart(part)) return null;
+                const toolName =
+                  part.type === "dynamic-tool" ? part.toolName : part.type.slice("tool-".length);
+                const { prefix, detail, isBash } = getToolDisplay(toolName, part.input);
 
-              return (
-                <box
-                  key={part.toolCallId}
-                  border={["left"]}
-                  borderColor={
-                    isError
-                      ? colors.error
-                      : isRunning
-                        ? colors.thinking
-                        : colors.thinkingBorder
-                  }
-                  customBorderChars={{
-                    ...EmptyBorder,
-                    vertical: "│",
-                  }}
-                  width="100%"
-                  paddingX={2}
-                  flexDirection="column"
-                >
-                  <box flexDirection="row" gap={1} alignItems="center">
+                return (
+                  <box key={part.toolCallId} flexDirection="row" gap={1}>
                     {isBash ? (
                       <text attributes={TextAttributes.BOLD} fg={colors.primary}>
                         $
                       </text>
                     ) : (
-                      <text attributes={TextAttributes.BOLD} fg={colors.info}>
+                      <text attributes={TextAttributes.ITALIC} fg={colors.selection}>
                         {prefix}:
                       </text>
                     )}
                     <text fg={isBash ? colors.selection : undefined}>{detail}</text>
-                    {isRunning && (
-                      <text attributes={TextAttributes.DIM} fg={colors.thinking}>
-                        …
-                      </text>
-                    )}
-                    {isSuccess && (
-                      <text attributes={TextAttributes.BOLD} fg={colors.success}>
-                        ✓
-                      </text>
-                    )}
-                    {isError && (
-                      <text attributes={TextAttributes.BOLD} fg={colors.error}>
-                        ✗
-                      </text>
-                    )}
                   </box>
+                );
+              })}
+            </box>
+          );
+        }
 
-                  {isError && part.errorText && (
-                    <box paddingLeft={2} paddingTop={0}>
-                      <text fg={colors.error} attributes={TextAttributes.DIM}>
-                        {part.errorText}
-                      </text>
-                    </box>
-                  )}
-                </box>
-              );
-            }
+        if (group.type === "text") {
+          const text = group.parts
+            .filter((p) => p.type === "text")
+            .map((p) => (p as { text?: string }).text || "")
+            .join("");
 
-            if (part.type === "text") {
-              return (
-                <box key={`text-${j}`} paddingX={3} width="100%">
-                  <text>{part.text}</text>
-                </box>
-              );
-            }
+          return (
+            <box key={group.key} paddingX={3} width="100%" paddingTop={i === 0 ? 0 : 1}>
+              <text>{text}</text>
+            </box>
+          );
+        }
 
-            return null;
-          })}
-        </box>
-      ))}
+        return null;
+      })}
 
       <box paddingX={3} paddingY={1} gap={1} width="100%">
         <box flexDirection="row" gap={2}>
