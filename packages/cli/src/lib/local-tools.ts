@@ -23,6 +23,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from "fs/promises";
 import { checkpointManager } from "./checkpoints";
 import { checkFileDiagnostics } from "./diagnostics";
 import { applyFuzzyUnifiedDiff } from "./fuzzy-patch";
+import { buildSemanticRepoMap } from "./repo-map";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { toolInputSchemas, Mode, type ModeType } from "@thinktocode/shared";
 
@@ -51,11 +52,25 @@ function truncate(value: string, limit: number) {
 }
 
 export async function executeLocalTool(toolName: string, input: unknown, mode: ModeType) {
-  if (mode === Mode.PLAN && !["readFile", "listDirectory", "glob", "grep"].includes(toolName)) {
+  if (mode === Mode.PLAN && !["repoMap", "readFile", "listDirectory", "glob", "grep"].includes(toolName)) {
     throw new Error(`Tool ${toolName} is not available in PLAN mode`);
   }
 
   switch (toolName) {
+    case "repoMap": {
+      const { query } = toolInputSchemas.repoMap.parse(input);
+      const result = await buildSemanticRepoMap({
+        cwd: process.cwd(),
+        query,
+        maxTokens: 1800,
+      });
+      return {
+        repoMap: result.renderedMap,
+        tokenEstimate: result.tokenEstimate,
+        totalFilesScanned: result.totalFilesScanned,
+        topRankedFiles: result.topRankedFiles,
+      };
+    }
     case "readFile": {
       const { path } = toolInputSchemas.readFile.parse(input);
       const { resolved } = resolveInsideCwd(path);

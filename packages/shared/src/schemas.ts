@@ -11,6 +11,9 @@ export const modeSchema = z.enum([Mode.BUILD, Mode.PLAN]);
 export type ModeType = (typeof Mode)[keyof typeof Mode];
 
 export const toolInputSchemas = {
+  repoMap: z.object({
+    query: z.string().optional().describe("Optional natural language or keyword query to personalize rankings"),
+  }),
   readFile: z.object({
     path: z.string().describe("Relative path to the file to read"),
   }),
@@ -65,6 +68,11 @@ export const toolInputSchemas = {
 } as const;
 
 export const readOnlyToolContracts = {
+  repoMap: tool({
+    description:
+      "Generate a compact (<1,800 token) Semantic Repository Map extracting top-ranked architectural signatures, interfaces, classes, and types across the codebase using BM25 and PageRank.",
+    inputSchema: toolInputSchemas.repoMap,
+  }),
   readFile: tool({
     description: "Read a file from the current project directory.",
     inputSchema: toolInputSchemas.readFile,
