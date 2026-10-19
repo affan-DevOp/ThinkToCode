@@ -6,6 +6,7 @@ import {
   type ModeType,
   type SupportedChatModelId,
 } from "@thinktocode/shared";
+import { getStickyModelForMode, setStickyModelForMode } from "../../lib/preferences";
 
 type PromptConfigContextValue = {
   mode: ModeType;
@@ -30,12 +31,28 @@ type PromptConfigProviderProps = {
 };
 
 export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
-  const [mode, setMode] = useState<ModeType>(Mode.BUILD);
-  const [model, setModel] = useState<SupportedChatModelId>(DEFAULT_CHAT_MODEL_ID);
+  const [mode, setModeState] = useState<ModeType>(Mode.BUILD);
+  const [model, setModelState] = useState<SupportedChatModelId>(() => getStickyModelForMode(Mode.BUILD));
+
+  const setMode = useCallback((nextMode: ModeType) => {
+    setModeState(nextMode);
+    const stickyModel = getStickyModelForMode(nextMode);
+    setModelState(stickyModel);
+  }, []);
 
   const toggleMode = useCallback(() => {
-    setMode((m) => (m === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
+    setModeState((currentMode) => {
+      const nextMode = currentMode === Mode.BUILD ? Mode.PLAN : Mode.BUILD;
+      const stickyModel = getStickyModelForMode(nextMode);
+      setModelState(stickyModel);
+      return nextMode;
+    });
   }, []);
+
+  const setModel = useCallback((nextModel: SupportedChatModelId) => {
+    setModelState(nextModel);
+    setStickyModelForMode(mode, nextModel);
+  }, [mode]);
 
   return (
     <PromptConfigContext.Provider 
