@@ -33,6 +33,44 @@ const sessionLocationSchema = z.object({
     .optional(),
 });
 
+function groupAssistantMessages(messages: Message[]): Message[] {
+  const result: Message[] = [];
+
+  for (const msg of messages) {
+    const last = result[result.length - 1];
+    if (msg.role === "assistant" && last && last.role === "assistant") {
+      const existingToolIds = new Set(
+        last.parts
+          .filter((p): p is Extract<typeof p, { toolCallId: string }> => "toolCallId" in p && Boolean(p.toolCallId))
+          .map((p) => p.toolCallId),
+      );
+
+      const newParts = msg.parts.filter((p) => {
+        if ("toolCallId" in p && p.toolCallId) {
+          if (existingToolIds.has(p.toolCallId)) return false;
+          existingToolIds.add(p.toolCallId);
+        }
+        return true;
+      });
+
+      last.parts = [...last.parts, ...newParts];
+      last.metadata = {
+        ...last.metadata,
+        ...msg.metadata,
+        durationMs: msg.metadata?.durationMs ?? last.metadata?.durationMs,
+      };
+    } else {
+      result.push({
+        ...msg,
+        parts: [...msg.parts],
+        metadata: msg.metadata ? { ...msg.metadata } : undefined,
+      });
+    }
+  }
+
+  return result;
+}
+
 function ChatMessage(
   { msg }: {
     msg: Message
@@ -149,13 +187,15 @@ function SessionChat({
     });
   }, [initialPrompt, submit]);
 
+  const groupedMessages = useMemo(() => groupAssistantMessages(messages), [messages]);
+
   return (
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
       loading={status === "submitted" || status === "streaming"}
       interruptible={status === "submitted" || status === "streaming"}
     >
-      {messages.map((msg) => (
+      {groupedMessages.map((msg) => (
         <ChatMessage key={msg.id} msg={msg} />
       ))}
       {error && <ErrorMessage message={error.message} />}

@@ -115,9 +115,12 @@ type PartGroup = {
 
 function groupConsecutiveParts(parts: ClientMessagePart[]): PartGroup[] {
   const groups: PartGroup[] = [];
+  const meaningfulParts = parts.filter(
+    (part) => part.type !== "text" || Boolean((part as { text?: string }).text?.trim()),
+  );
 
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]!;
+  for (let i = 0; i < meaningfulParts.length; i++) {
+    const part = meaningfulParts[i]!;
     const isCurrentTool = isToolPart(part);
     const lastGroup = groups[groups.length - 1];
     const isLastTool = lastGroup && lastGroup.type === "tools";
@@ -156,7 +159,7 @@ export function BotMessage({
               borderColor={colors.thinkingBorder}
               customBorderChars={{
                 ...EmptyBorder,
-                vertical: "│",
+                vertical: "\u2502",
               }}
               width="100%"
               paddingX={2}
@@ -179,7 +182,7 @@ export function BotMessage({
               borderColor={colors.thinkingBorder}
               customBorderChars={{
                 ...EmptyBorder,
-                vertical: "│",
+                vertical: "\u2502",
               }}
               width="100%"
               paddingX={2}
@@ -191,19 +194,34 @@ export function BotMessage({
                 const toolName =
                   part.type === "dynamic-tool" ? part.toolName : part.type.slice("tool-".length);
                 const { prefix, detail, isBash } = getToolDisplay(toolName, part.input);
+                const isError = part.state === "output-error";
 
                 return (
-                  <box key={part.toolCallId} flexDirection="row" gap={1}>
-                    {isBash ? (
-                      <text attributes={TextAttributes.BOLD} fg={colors.primary}>
-                        $
-                      </text>
-                    ) : (
-                      <text attributes={TextAttributes.ITALIC} fg={colors.selection}>
-                        {prefix}:
-                      </text>
+                  <box key={part.toolCallId} flexDirection="column">
+                    <box flexDirection="row" gap={1}>
+                      {isBash ? (
+                        <text attributes={TextAttributes.BOLD} fg={colors.primary}>
+                          $
+                        </text>
+                      ) : (
+                        <text attributes={TextAttributes.ITALIC} fg={isError ? colors.error : colors.info}>
+                          {prefix}:
+                        </text>
+                      )}
+                      <text>{detail}</text>
+                      {isError && (
+                        <text attributes={TextAttributes.BOLD} fg={colors.error}>
+                          ✗
+                        </text>
+                      )}
+                    </box>
+                    {isError && part.errorText && (
+                      <box paddingLeft={2}>
+                        <text fg={colors.error} attributes={TextAttributes.DIM}>
+                          {part.errorText}
+                        </text>
+                      </box>
                     )}
-                    <text fg={isBash ? colors.selection : undefined}>{detail}</text>
                   </box>
                 );
               })}

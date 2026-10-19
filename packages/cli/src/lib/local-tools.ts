@@ -49,24 +49,29 @@ function getWorkspaceRoot(): string {
 }
 
 function resolveInsideCwd(path: string) {
-  let cwd = process.cwd();
-  const directResolved = resolve(cwd, path);
+  const root = getWorkspaceRoot();
+  const cwd = process.cwd();
 
-  if (!existsSync(directResolved)) {
-    const root = getWorkspaceRoot();
-    if (root !== cwd && existsSync(resolve(root, path))) {
-      cwd = root;
-    }
+  // Try direct resolution from cwd first
+  let target = resolve(cwd, path);
+
+  // If target does not exist or target escapes cwd, try relative to workspace root
+  if ((!existsSync(target) || relative(cwd, target).startsWith("..")) && existsSync(resolve(root, path))) {
+    target = resolve(root, path);
   }
 
-  const resolved = resolve(cwd, path);
-  const rel = relative(cwd, resolved);
+  // Security guard: ensure target is within either the workspace root or cwd
+  const relRoot = relative(root, target);
+  const relCwd = relative(cwd, target);
 
-  if (rel.startsWith("..") || isAbsolute(rel)) {
+  const isInsideRoot = !relRoot.startsWith("..") && !isAbsolute(relRoot);
+  const isInsideCwd = !relCwd.startsWith("..") && !isAbsolute(relCwd);
+
+  if (!isInsideRoot && !isInsideCwd) {
     throw new Error("Path is outside the project directory");
   }
 
-  return { cwd, resolved };
+  return { cwd: isInsideCwd ? cwd : root, resolved: target };
 }
 
 function truncate(value: string, limit: number) {

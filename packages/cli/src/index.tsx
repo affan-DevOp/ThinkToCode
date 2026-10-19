@@ -1,3 +1,28 @@
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+
+function autoAnchorWorkspaceRoot() {
+  let curr = process.cwd();
+  while (curr !== dirname(curr)) {
+    if (
+      existsSync(join(curr, ".git")) ||
+      (existsSync(join(curr, "packages")) && existsSync(join(curr, "package.json")))
+    ) {
+      if (curr !== process.cwd()) {
+        try {
+          process.chdir(curr);
+        } catch {
+          // Ignore if chdir is disallowed
+        }
+      }
+      return;
+    }
+    curr = dirname(curr);
+  }
+}
+
+autoAnchorWorkspaceRoot();
+
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
