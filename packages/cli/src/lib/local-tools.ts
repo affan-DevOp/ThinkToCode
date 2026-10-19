@@ -22,6 +22,7 @@ function resolveBashCommand(cmd: string): { command: string[]; env?: Record<stri
 import { mkdir, readFile, readdir, stat, writeFile } from "fs/promises";
 import { checkpointManager } from "./checkpoints";
 import { checkFileDiagnostics } from "./diagnostics";
+import { applyFuzzyUnifiedDiff } from "./fuzzy-patch";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { toolInputSchemas, Mode, type ModeType } from "@thinktocode/shared";
 
@@ -243,6 +244,37 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
         stdout: truncate(stdout, MAX_OUTPUT),
         stderr: truncate(stderr, MAX_OUTPUT),
         exitCode,
+      };
+    }
+    case "patchFile": {
+      const { path, patch, previewOnly = false } = toolInputSchemas.patchFile.parse(input);
+      const { cwd, resolved } = resolveInsideCwd(path);
+      const originalContent = await readFile(resolved, "utf-8");
+      const result = applyFuzzyUnifiedDiff(originalContent, patch);
+
+      if (!result.success || result.patchedContent === undefined) {
+        throw new Error(
+          result.failedHunk?.reason ?? "Failed to apply unified diff patch"
+        );
+      }
+
+      if (!previewOnly) {
+        checkpointManager.captureFileBeforeMutation(resolved, relative(cwd, resolved));
+        await writeFile(resolved, result.patchedContent, "utf-8");
+      }
+
+      const diag = !previewOnly ? checkFileDiagnostics(resolved, result.patchedContent) : undefined;
+
+      return {
+        success: true as const,
+        previewOnly,
+        path: relative(cwd, resolved),
+        hunksApplied: result.appliedHunks.length,
+        appliedHunks: result.appliedHunks,
+        additions: result.sideBySidePreview?.additions ?? 0,
+        deletions: result.sideBySidePreview?.deletions ?? 0,
+        sideBySidePreview: result.sideBySidePreview?.ansiSplitString ?? "",
+        ...(diag ? { diagnostics: diag } : {}),
       };
     }
     default:

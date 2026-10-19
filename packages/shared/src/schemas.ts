@@ -49,6 +49,19 @@ export const toolInputSchemas = {
     description: z.string().optional().describe("Short description of the command"),
     timeout: z.number().optional().describe("Timeout in milliseconds"),
   }),
+  patchFile: z.object({
+    path: z.string().describe("Relative path to the file to patch"),
+    patch: z
+      .string()
+      .describe(
+        "Unified diff containing @@ ... @@ hunks with ' ' (context), '-' (removed), and '+' (added) lines"
+      ),
+    previewOnly: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("If true, returns the side-by-side diff preview without writing to disk"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -85,6 +98,11 @@ export const buildToolContracts = {
   bash: tool({
     description: "Run a shell command in the current project directory.",
     inputSchema: toolInputSchemas.bash,
+  }),
+  patchFile: tool({
+    description:
+      "Apply a Unified Diff patch (with one or more '@@ -start,count +start,count @@' hunks) to an existing file using a 4-tier cascade fuzzy matching engine. Tolerates shifted line numbers, trailing whitespace differences, and block indentation shifts while saving ~70% of output tokens.",
+    inputSchema: toolInputSchemas.patchFile,
   }),
 } as const;
 
