@@ -40,7 +40,9 @@ export const SwarmTaskDagSchema = z.object({
 });
 
 export type DagTaskNode = z.infer<typeof DagTaskNodeSchema>;
+export type DagTaskNodeInput = z.input<typeof DagTaskNodeSchema>;
 export type SwarmTaskDag = z.infer<typeof SwarmTaskDagSchema>;
+export type SwarmTaskDagInput = z.input<typeof SwarmTaskDagSchema>;
 
 export interface UpstreamContract {
   taskId: string;
@@ -85,7 +87,8 @@ export interface CompiledDagPlan {
  * and enforces file-level write isolation within every wave so parallel Worker
  * Agents never overwrite each other's files concurrently.
  */
-export function compileTopologicalWaves(dag: SwarmTaskDag): CompiledDagPlan {
+export function compileTopologicalWaves(rawDag: SwarmTaskDagInput | SwarmTaskDag): CompiledDagPlan {
+  const dag = SwarmTaskDagSchema.parse(rawDag);
   const taskMap = new Map<string, DagTaskNode>();
   for (const t of dag.tasks) {
     if (taskMap.has(t.id)) {
@@ -365,7 +368,7 @@ export interface SwarmExecutionPlanResult {
 /**
  * Creates a validated Swarm Task DAG from a decomposed plan structure.
  */
-export function createSwarmPlan(rawDag: unknown): SwarmExecutionPlanResult {
+export function createSwarmPlan(rawDag: SwarmTaskDagInput | SwarmTaskDag | unknown): SwarmExecutionPlanResult {
   const dag = SwarmTaskDagSchema.parse(rawDag);
   const compiledPlan = compileTopologicalWaves(dag);
   const metrics = compareSingleAgentVsSwarm(compiledPlan);

@@ -49,8 +49,8 @@ describe("ThinkToCode Upgrades Test Suite", () => {
       const diff = `@@ -1,3 +1,3 @@\n-const a = 1;\n+const a = 2;\n const b = 2;`;
       const hunks = parseUnifiedDiff(diff);
       expect(hunks.length).toBe(1);
-      expect(hunks[0].oldStart).toBe(1);
-      expect(hunks[0].newStart).toBe(1);
+      expect(hunks[0]!.oldStart).toBe(1);
+      expect(hunks[0]!.newStart).toBe(1);
     });
 
     test("applies 4-tier fuzzy patch successfully", () => {
@@ -60,7 +60,7 @@ describe("ThinkToCode Upgrades Test Suite", () => {
       expect(res.success).toBe(true);
       expect(res.patchedContent).toContain("const x = 20;");
       expect(res.appliedHunks.length).toBe(1);
-      expect(res.appliedHunks[0].strategy).toBe("exact-offset");
+      expect(res.appliedHunks[0]!.strategy).toBe("exact-offset");
     });
   });
 
@@ -113,8 +113,8 @@ describe("ThinkToCode Upgrades Test Suite", () => {
       });
 
       expect(plan.waves.length).toBe(2);
-      expect(plan.waves[0].length).toBe(1);
-      expect(plan.waves[1].length).toBe(2);
+      expect(plan.waves[0]!.length).toBe(1);
+      expect(plan.waves[1]!.length).toBe(2);
       expect(plan.maxParallelism).toBe(2);
     });
 
@@ -142,7 +142,7 @@ describe("ThinkToCode Upgrades Test Suite", () => {
 
       expect(plan.waves.length).toBe(2);
       expect(plan.autoSerializedPairs.length).toBe(1);
-      expect(plan.autoSerializedPairs[0].conflictingFile).toBe("src/common.ts");
+      expect(plan.autoSerializedPairs[0]!.conflictingFile).toBe("src/common.ts");
     });
 
     test("computes analytic token savings", () => {
